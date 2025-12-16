@@ -135,6 +135,16 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(amount);
 }
 
+function formatAccountType(type: AccountType): string {
+  const labels: Record<AccountType, string> = {
+    CREDIT_CARD: 'Credit card',
+    LOAN: 'Loan',
+    OVERDRAFT: 'Overdraft',
+  };
+
+  return labels[type];
+}
+
 function formatDate(value: string): string {
   const date = new Date(value);
   return date.toLocaleDateString('tr-TR', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -525,9 +535,71 @@ export default function App() {
 
   const themeClass = useMemo(() => (theme === 'dark' ? 'dark' : 'light'), [theme]);
 
-  const totalBalance = useMemo(
-    () => accounts.reduce((sum, account) => sum + getBalance(account, transactions), 0),
+  const accountSummaries = useMemo(
+    () => accounts.map((account) => ({ account, balance: getBalance(account, transactions) })),
     [accounts, transactions],
+  );
+
+  const totalRemainingDebt = useMemo(
+    () => accountSummaries.reduce((sum, { balance }) => sum + Math.max(balance, 0), 0),
+    [accountSummaries],
+  );
+
+  const breakdownByType = useMemo(
+    () =>
+      accountSummaries.reduce(
+        (totals, { account, balance }) => ({
+          ...totals,
+          [account.type]: (totals[account.type] ?? 0) + Math.max(balance, 0),
+        }),
+        { CREDIT_CARD: 0, LOAN: 0, OVERDRAFT: 0 } as Record<AccountType, number>,
+      ),
+    [accountSummaries],
+  );
+
+  const recentTransactions = useMemo(() => {
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - 30);
+    return transactions.filter((transaction) => new Date(transaction.date) >= windowStart);
+  }, [transactions]);
+
+  const totalRecentPayments = useMemo(
+    () =>
+      recentTransactions
+        .filter((transaction) => transaction.direction === 'POSITIVE')
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    [recentTransactions],
+  );
+
+  const totalRecentCharges = useMemo(
+    () =>
+      recentTransactions
+        .filter((transaction) => transaction.direction === 'NEGATIVE')
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    [recentTransactions],
+  );
+
+  const highestDebtAccount = useMemo(
+    () =>
+      accountSummaries.reduce<{ account: Account; debt: number } | null>((current, entry) => {
+        const debt = Math.max(entry.balance, 0);
+        if (!current || debt > current.debt) {
+          return { account: entry.account, debt };
+        }
+        return current;
+      }, null),
+    [accountSummaries],
+  );
+
+  const accountsWithoutRecentPayments = useMemo(
+    () =>
+      accountSummaries.filter(
+        ({ account }) =>
+          !recentTransactions.some(
+            (transaction) => transaction.accountId === account.id && transaction.direction === 'POSITIVE',
+          ),
+      ),
+    [accountSummaries, recentTransactions],
   );
 
   useEffect(() => {
@@ -555,21 +627,86 @@ export default function App() {
         <Header theme={theme} onToggleTheme={toggleTheme} />
 
         <section className="card stats">
-          <div>
-            <p className="eyebrow">Current debt</p>
-            <h2>{formatCurrency(totalBalance)}</h2>
-            <p className="muted">NEGATIVE increases debt, POSITIVE reduces it.</p>
+          <div className="stats-header">
+            <div>
+              <p className="eyebrow">Debt pulse</p>
+              <h2>{formatCurrency(totalRemainingDebt)}</h2>
+              <p className="muted">Total remaining debt across all accounts.</p>
+            </div>
+
+            <div className="highlight-grid">
+              <div className="highlight">
+                <p className="muted small">30-day payments</p>
+                <strong className="positive">{formatCurrency(totalRecentPayments)}</strong>
+                <p className="muted">Expenses & interest: {formatCurrency(totalRecentCharges)}</p>
+              </div>
+              <div className="highlight">
+                <p className="muted small">Highest debt</p>
+                {highestDebtAccount ? (
+                  <>
+                    <strong className="negative">{formatCurrency(highestDebtAccount.debt)}</strong>
+                    <p className="muted">{highestDebtAccount.account.name}</p>
+                  </>
+                ) : (
+                  <p className="muted">Add an account to track your exposure.</p>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="stat-grid">
-            {accounts.map((account) => {
-              const balance = getBalance(account, transactions);
-              return (
-                <div key={account.id} className="stat">
-                  <p className="muted">{account.name}</p>
-                  <strong className={balance > 0 ? 'negative' : 'positive'}>{formatCurrency(balance)}</strong>
+
+          <div className="summary-grid">
+            <div className="metric-card">
+              <p className="muted small">Breakdown by account type</p>
+              <ul className="mini-list">
+                {Object.entries(breakdownByType).map(([type, amount]) => (
+                  <li key={type}>
+                    <span>{formatAccountType(type as AccountType)}</span>
+                    <strong>{formatCurrency(amount)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="metric-card">
+              <p className="muted small">Account with highest debt</p>
+              {highestDebtAccount ? (
+                <div className="stack">
+                  <strong className="negative">{formatCurrency(highestDebtAccount.debt)}</strong>
+                  <p className="muted">{highestDebtAccount.account.bankName}</p>
+                  <p>{highestDebtAccount.account.name}</p>
                 </div>
-              );
-            })}
+              ) : (
+                <p className="empty">No accounts yet.</p>
+              )}
+            </div>
+
+            <div className="metric-card">
+              <p className="muted small">Payment health (last 30 days)</p>
+              {accountsWithoutRecentPayments.length === 0 ? (
+                <p className="positive">Every account has a recent payment.</p>
+              ) : (
+                <ul className="mini-list warning">
+                  {accountsWithoutRecentPayments.map(({ account }) => (
+                    <li key={account.id}>
+                      <span>{account.name}</span>
+                      <span className="muted small">No POSITIVE transactions</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="stat-grid">
+            {accountSummaries.map(({ account, balance }) => (
+              <div key={account.id} className="stat">
+                <div className="stack">
+                  <p className="muted small">{formatAccountType(account.type)}</p>
+                  <p>{account.name}</p>
+                </div>
+                <strong className={balance > 0 ? 'negative' : 'positive'}>{formatCurrency(balance)}</strong>
+              </div>
+            ))}
             {accounts.length === 0 && <p className="empty">Add an account to see balances.</p>}
           </div>
         </section>
