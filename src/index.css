@@ -261,6 +261,20 @@ a {
   color: #ef4444;
 }
 
+.pill.preset {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text);
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.pill.preset.active,
+.pill.preset:hover {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .list-item {
   display: flex;
   justify-content: space-between;
@@ -297,6 +311,26 @@ a {
 
 .negative {
   color: #ef4444;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transaction-positive {
+  border-color: #bbf7d0;
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.9), rgba(220, 252, 231, 0.7));
+}
+
+.transaction-negative {
+  border-color: #fecdd3;
+  background: linear-gradient(180deg, rgba(255, 241, 242, 0.9), rgba(254, 226, 226, 0.7));
+}
+
+.muted.small {
+  font-size: 12px;
 }
 
 .field {
