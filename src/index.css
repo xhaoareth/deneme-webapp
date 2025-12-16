@@ -288,7 +288,8 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
@@ -310,7 +311,7 @@ a {
   text-align: right;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   min-width: 140px;
 }
 
@@ -479,8 +480,11 @@ a {
 
 .empty {
   text-align: center;
-  padding: 12px;
+  padding: 16px;
   color: var(--muted);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
 }
 
 .mini-stats {
@@ -493,6 +497,12 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.error-fallback {
+  display: grid;
+  gap: 12px;
+  text-align: center;
 }
 
 .edit-grid {
@@ -522,5 +532,26 @@ a {
 
   .stats {
     grid-template-columns: 1fr;
+  }
+
+  .page {
+    padding: 20px 12px 36px;
+  }
+
+  .card,
+  .navbar {
+    padding: 18px 14px;
+  }
+
+  .list-item,
+  .balance {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .balance {
+    min-width: auto;
+    width: 100%;
   }
 }

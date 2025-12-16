@@ -175,7 +175,15 @@ function Header({ theme, onToggleTheme }: { theme: string; onToggleTheme: () => 
   );
 }
 
-function AccountCard({ account, balance }: { account: Account; balance: number }) {
+function AccountCard({
+  account,
+  balance,
+  onDelete,
+}: {
+  account: Account;
+  balance: number;
+  onDelete?: (account: Account) => void;
+}) {
   return (
     <li className="list-item account">
       <div className="stack">
@@ -190,6 +198,15 @@ function AccountCard({ account, balance }: { account: Account; balance: number }
       <div className="balance">
         <p className="muted">Current balance</p>
         <strong className={balance > 0 ? 'negative' : 'positive'}>{formatCurrency(balance)}</strong>
+        {onDelete && (
+          <button
+            type="button"
+            className="ghost danger-text"
+            onClick={() => onDelete(account)}
+          >
+            Delete account
+          </button>
+        )}
       </div>
     </li>
   );
@@ -199,10 +216,12 @@ function AccountsSection({
   accounts,
   transactions,
   onAddAccount,
+  onDeleteAccount,
 }: {
   accounts: Account[];
   transactions: Transaction[];
   onAddAccount: (account: Account) => void;
+  onDeleteAccount: (accountId: string) => void;
 }) {
   const [form, setForm] = useState({
     name: '',
@@ -262,6 +281,16 @@ function AccountsSection({
     setError('');
   };
 
+  const handleDeleteAccount = (account: Account) => {
+    const confirmed = window.confirm(
+      `Delete ${account.name}? Related transactions for this account will also be removed.`,
+    );
+
+    if (confirmed) {
+      onDeleteAccount(account.id);
+    }
+  };
+
   return (
     <section className="card">
       <div className="card-header">
@@ -318,9 +347,16 @@ function AccountsSection({
 
       <ul className="list">
         {accounts.map((account) => (
-          <AccountCard key={account.id} account={account} balance={getBalance(account, transactions)} />
+          <AccountCard
+            key={account.id}
+            account={account}
+            balance={getBalance(account, transactions)}
+            onDelete={() => handleDeleteAccount(account)}
+          />
         ))}
-        {accounts.length === 0 && <p className="empty">Add your first account to start tracking debt.</p>}
+        {accounts.length === 0 && (
+          <p className="empty">No accounts yet. Add an account to start tracking balances and payments.</p>
+        )}
       </ul>
     </section>
   );
@@ -328,7 +364,15 @@ function AccountsSection({
 
 const categoryPresets = ['Payment', 'Shopping', 'Interest', 'Cash', 'Other'] as const;
 
-function TransactionRow({ transaction, accountName }: { transaction: Transaction; accountName: string }) {
+function TransactionRow({
+  transaction,
+  accountName,
+  onDelete,
+}: {
+  transaction: Transaction;
+  accountName: string;
+  onDelete?: (transaction: Transaction) => void;
+}) {
   const directionLabel = transaction.direction === 'NEGATIVE' ? 'Charge' : 'Payment';
   return (
     <li
@@ -351,6 +395,11 @@ function TransactionRow({ transaction, accountName }: { transaction: Transaction
         <strong className={transaction.direction === 'NEGATIVE' ? 'negative' : 'positive'}>
           {formatCurrency(transaction.amount)}
         </strong>
+        {onDelete && (
+          <button type="button" className="ghost danger-text" onClick={() => onDelete(transaction)}>
+            Delete
+          </button>
+        )}
       </div>
     </li>
   );
@@ -360,10 +409,12 @@ function TransactionsSection({
   accounts,
   transactions,
   onAddTransaction,
+  onDeleteTransaction,
 }: {
   accounts: Account[];
   transactions: Transaction[];
   onAddTransaction: (transaction: Transaction) => void;
+  onDeleteTransaction: (transactionId: string) => void;
 }) {
   const [form, setForm] = useState({
     accountId: accounts[0]?.id ?? '',
@@ -379,6 +430,15 @@ function TransactionsSection({
     accountId: 'ALL',
     direction: 'ALL' as TransactionDirection | 'ALL',
   });
+
+  const accountNameLookup = useMemo(
+    () =>
+      accounts.reduce<Record<string, string>>((acc, account) => {
+        acc[account.id] = account.name;
+        return acc;
+      }, {}),
+    [accounts],
+  );
 
   useEffect(() => {
     if (!form.accountId && accounts[0]?.id) {
@@ -449,6 +509,16 @@ function TransactionsSection({
       return matchesAccount && matchesDirection;
     });
   }, [filters.accountId, filters.direction, transactions]);
+
+  const handleDeleteTransaction = (transaction: Transaction) => {
+    const confirmed = window.confirm(
+      `Delete this transaction for ${accountNameLookup[transaction.accountId] ?? 'an account'}?`,
+    );
+
+    if (confirmed) {
+      onDeleteTransaction(transaction.id);
+    }
+  };
 
   return (
     <section className="card">
@@ -558,10 +628,21 @@ function TransactionsSection({
       <ul className="list">
         {filteredTransactions.map((transaction) => {
           const accountName = accounts.find((account) => account.id === transaction.accountId)?.name || 'Unknown account';
-          return <TransactionRow key={transaction.id} transaction={transaction} accountName={accountName} />;
+          return (
+            <TransactionRow
+              key={transaction.id}
+              transaction={transaction}
+              accountName={accountName}
+              onDelete={handleDeleteTransaction}
+            />
+          );
         })}
         {filteredTransactions.length === 0 && (
-          <p className="empty">No transactions match your filters. Try adjusting them to see results.</p>
+          <p className="empty">
+            {transactions.length === 0
+              ? 'No transactions yet. Log your first charge or payment to visualize activity.'
+              : 'No transactions match your filters. Try adjusting them to see results.'}
+          </p>
         )}
       </ul>
     </section>
@@ -668,6 +749,14 @@ export default function App() {
 
   const addTransaction = (transaction: Transaction) => setTransactions((prev) => [transaction, ...prev]);
 
+  const deleteAccount = (accountId: string) => {
+    setAccounts((prev) => prev.filter((account) => account.id !== accountId));
+    setTransactions((prev) => prev.filter((transaction) => transaction.accountId !== accountId));
+  };
+
+  const deleteTransaction = (transactionId: string) =>
+    setTransactions((prev) => prev.filter((transaction) => transaction.id !== transactionId));
+
   const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   return (
@@ -768,8 +857,18 @@ export default function App() {
         </section>
 
         <main className="grid two-col">
-          <AccountsSection accounts={accounts} transactions={transactions} onAddAccount={addAccount} />
-          <TransactionsSection accounts={accounts} transactions={transactions} onAddTransaction={addTransaction} />
+          <AccountsSection
+            accounts={accounts}
+            transactions={transactions}
+            onAddAccount={addAccount}
+            onDeleteAccount={deleteAccount}
+          />
+          <TransactionsSection
+            accounts={accounts}
+            transactions={transactions}
+            onAddTransaction={addTransaction}
+            onDeleteTransaction={deleteTransaction}
+          />
         </main>
       </div>
     </div>
