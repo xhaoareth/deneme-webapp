@@ -288,14 +288,21 @@ function AccountsSection({
   );
 }
 
+const categoryPresets = ['Payment', 'Shopping', 'Interest', 'Cash', 'Other'] as const;
+
 function TransactionRow({ transaction, accountName }: { transaction: Transaction; accountName: string }) {
   const directionLabel = transaction.direction === 'NEGATIVE' ? 'Charge' : 'Payment';
   return (
-    <li className="list-item transaction">
+    <li
+      className={`list-item transaction ${
+        transaction.direction === 'NEGATIVE' ? 'transaction-negative' : 'transaction-positive'
+      }`}
+    >
       <div className="stack">
         <div className="meta">
           <span className={`pill ${transaction.direction === 'NEGATIVE' ? 'danger' : 'success'}`}>{directionLabel}</span>
           <span className="pill subtle">{transaction.category}</span>
+          <span className="pill subtle">{accountName}</span>
         </div>
         <h4>{transaction.description || 'No description'}</h4>
         <p className="muted">{accountName}</p>
@@ -329,14 +336,28 @@ function TransactionsSection({
     description: '',
   });
 
+  const [filters, setFilters] = useState({
+    accountId: 'ALL',
+    direction: 'ALL' as TransactionDirection | 'ALL',
+  });
+
   useEffect(() => {
     if (!form.accountId && accounts[0]?.id) {
       setForm((prev) => ({ ...prev, accountId: accounts[0].id }));
     }
   }, [accounts, form.accountId]);
 
+  useEffect(() => {
+    if (filters.accountId !== 'ALL' && !accounts.some((account) => account.id === filters.accountId)) {
+      setFilters((prev) => ({ ...prev, accountId: 'ALL' }));
+    }
+  }, [accounts, filters.accountId]);
+
   const handleChange = (event: InputChangeEvent) => {
-    setForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
+    const { name, value } = event.target;
+    const sanitizedValue =
+      name === 'amount' ? (value === '' ? '' : Math.abs(Number(value)).toString()) : value;
+    setForm((prev) => ({ ...prev, [name]: sanitizedValue }));
   };
 
   const handleSubmit = (event: FormSubmitEvent) => {
@@ -357,6 +378,21 @@ function TransactionsSection({
     setForm((prev) => ({ ...prev, amount: '0', description: '' }));
   };
 
+  const handleFilterChange = (event: InputChangeEvent) => {
+    const { name, value } = event.target;
+    setFilters((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((transaction) => {
+      const matchesAccount =
+        filters.accountId === 'ALL' || transaction.accountId === filters.accountId;
+      const matchesDirection =
+        filters.direction === 'ALL' || transaction.direction === filters.direction;
+      return matchesAccount && matchesDirection;
+    });
+  }, [filters.accountId, filters.direction, transactions]);
+
   return (
     <section className="card">
       <div className="card-header">
@@ -364,7 +400,31 @@ function TransactionsSection({
           <p className="eyebrow">Cashflow</p>
           <h2>Transactions</h2>
         </div>
-        <span className="pill">{transactions.length} records</span>
+        <span className="pill">
+          {filteredTransactions.length} of {transactions.length} records
+        </span>
+      </div>
+
+      <div className="grid two-col inline-fields">
+        <label className="field">
+          <span>Filter by account</span>
+          <select name="accountId" value={filters.accountId} onChange={handleFilterChange}>
+            <option value="ALL">All accounts</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Filter by direction</span>
+          <select name="direction" value={filters.direction} onChange={handleFilterChange}>
+            <option value="ALL">All directions</option>
+            <option value="NEGATIVE">Charges (increase debt)</option>
+            <option value="POSITIVE">Payments (reduce debt)</option>
+          </select>
+        </label>
       </div>
 
       <form className="grid account-form" onSubmit={handleSubmit}>
@@ -388,7 +448,16 @@ function TransactionsSection({
         <div className="grid two-col inline-fields">
           <label className="field">
             <span>Amount (TRY)</span>
-            <input name="amount" type="number" min="0" step="100" value={form.amount} onChange={handleChange} />
+            <input
+              name="amount"
+              type="number"
+              min="0"
+              step="100"
+              value={form.amount}
+              onChange={handleChange}
+              inputMode="decimal"
+            />
+            <p className="muted small">Always enter positive amounts; direction decides if debt goes up or down.</p>
           </label>
           <label className="field">
             <span>Direction</span>
@@ -402,6 +471,18 @@ function TransactionsSection({
         <div className="grid two-col inline-fields">
           <label className="field">
             <span>Category</span>
+            <div className="preset-row">
+              {categoryPresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className={`pill preset ${form.category === preset ? 'active' : ''}`}
+                  onClick={() => setForm((prev) => ({ ...prev, category: preset }))}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
             <input name="category" value={form.category} onChange={handleChange} />
           </label>
           <label className="field">
@@ -416,11 +497,13 @@ function TransactionsSection({
       </form>
 
       <ul className="list">
-        {transactions.map((transaction) => {
+        {filteredTransactions.map((transaction) => {
           const accountName = accounts.find((account) => account.id === transaction.accountId)?.name || 'Unknown account';
           return <TransactionRow key={transaction.id} transaction={transaction} accountName={accountName} />;
         })}
-        {transactions.length === 0 && <p className="empty">Add transactions to see how balances change over time.</p>}
+        {filteredTransactions.length === 0 && (
+          <p className="empty">No transactions match your filters. Try adjusting them to see results.</p>
+        )}
       </ul>
     </section>
   );
