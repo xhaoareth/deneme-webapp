@@ -148,28 +148,6 @@ function getBalance(account: Account, transactions: Transaction[]): number {
     }, account.startingDebt);
 }
 
-function getAccountStats(account: Account, transactions: Transaction[]) {
-  const totals = transactions
-    .filter((transaction) => transaction.accountId === account.id)
-    .reduce(
-      (acc, transaction) => {
-        if (transaction.direction === 'NEGATIVE') {
-          acc.negative += transaction.amount;
-        } else {
-          acc.positive += transaction.amount;
-        }
-        return acc;
-      },
-      { positive: 0, negative: 0 },
-    );
-
-  return {
-    currentDebt: account.startingDebt + totals.negative - totals.positive,
-    totalPaid: totals.positive,
-    totalSpent: totals.negative,
-  };
-}
-
 function Header({ theme, onToggleTheme }: { theme: string; onToggleTheme: () => void }) {
   return (
     <header className="navbar">
@@ -187,110 +165,21 @@ function Header({ theme, onToggleTheme }: { theme: string; onToggleTheme: () => 
   );
 }
 
-type AccountCardProps = {
-  account: Account;
-  balance: number;
-  isHighestDebt: boolean;
-  totals: { currentDebt: number; totalPaid: number; totalSpent: number };
-  onEdit: (account: Account) => void;
-  onDelete: (account: Account) => void;
-  isEditing: boolean;
-  editForm: {
-    name: string;
-    bankName: string;
-    type: AccountType;
-    startingDebt: string;
-    notes: string;
-  };
-  onEditChange: (event: InputChangeEvent) => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-};
-
-function AccountCard({
-  account,
-  balance,
-  isHighestDebt,
-  totals,
-  onEdit,
-  onDelete,
-  isEditing,
-  editForm,
-  onEditChange,
-  onSaveEdit,
-  onCancelEdit,
-}: AccountCardProps) {
-  const debtLabel = balance > 0 ? 'Remaining debt' : 'Surplus';
+function AccountCard({ account, balance }: { account: Account; balance: number }) {
   return (
-    <li className={`list-item account ${isHighestDebt ? 'highest-debt' : ''}`}>
+    <li className="list-item account">
       <div className="stack">
         <div className="meta">
           <span className="pill subtle">{account.bankName}</span>
           <span className="pill subtle">{account.type.replace('_', ' ')}</span>
-          {isHighestDebt && <span className="pill danger">Highest debt</span>}
         </div>
         <h3>{account.name}</h3>
-        {isEditing ? (
-          <div className="grid edit-grid">
-            <input name="name" value={editForm.name} onChange={onEditChange} />
-            <input name="bankName" value={editForm.bankName} onChange={onEditChange} />
-            <select name="type" value={editForm.type} onChange={onEditChange}>
-              <option value="CREDIT_CARD">Credit Card</option>
-              <option value="LOAN">Loan</option>
-              <option value="OVERDRAFT">Overdraft</option>
-            </select>
-            <input
-              name="startingDebt"
-              type="number"
-              min="0"
-              step="100"
-              value={editForm.startingDebt}
-              onChange={onEditChange}
-            />
-            <textarea name="notes" rows={2} value={editForm.notes} onChange={onEditChange} />
-            <div className="action-row">
-              <button type="button" className="ghost" onClick={onCancelEdit}>
-                Cancel
-              </button>
-              <button type="button" className="primary" onClick={onSaveEdit}>
-                Save changes
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <p>{account.notes}</p>
-            <p className="muted">Opened {formatDate(account.createdAt)}</p>
-          </>
-        )}
-        {!isEditing && (
-          <div className="action-row">
-            <button type="button" className="ghost" onClick={() => onEdit(account)}>
-              Edit
-            </button>
-            <button type="button" className="ghost danger-text" onClick={() => onDelete(account)}>
-              Delete
-            </button>
-          </div>
-        )}
+        <p>{account.notes}</p>
+        <p className="muted">Opened {formatDate(account.createdAt)}</p>
       </div>
       <div className="balance">
-        <p className="muted">{debtLabel}</p>
+        <p className="muted">Current balance</p>
         <strong className={balance > 0 ? 'negative' : 'positive'}>{formatCurrency(balance)}</strong>
-        <div className="mini-stats">
-          <p>
-            <span className="muted">Starting debt</span>
-            <strong>{formatCurrency(account.startingDebt)}</strong>
-          </p>
-          <p>
-            <span className="muted">Total paid (POSITIVE)</span>
-            <strong className="positive">{formatCurrency(totals.totalPaid)}</strong>
-          </p>
-          <p>
-            <span className="muted">Charges/interest (NEGATIVE)</span>
-            <strong className="negative">{formatCurrency(totals.totalSpent)}</strong>
-          </p>
-        </div>
       </div>
     </li>
   );
@@ -300,14 +189,10 @@ function AccountsSection({
   accounts,
   transactions,
   onAddAccount,
-  onUpdateAccount,
-  onDeleteAccount,
 }: {
   accounts: Account[];
   transactions: Transaction[];
   onAddAccount: (account: Account) => void;
-  onUpdateAccount: (account: Account) => void;
-  onDeleteAccount: (account: Account) => void;
 }) {
   const [form, setForm] = useState({
     name: '',
@@ -317,38 +202,8 @@ function AccountsSection({
     notes: '',
   });
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    bankName: '',
-    type: 'CREDIT_CARD' as AccountType,
-    startingDebt: '0',
-    notes: '',
-  });
-
-  const accountStats = useMemo(
-    () =>
-      accounts.map((account) => ({
-        account,
-        stats: getAccountStats(account, transactions),
-      })),
-    [accounts, transactions],
-  );
-
-  const highestDebtAccountId = useMemo(() => {
-    if (accountStats.length === 0) return null;
-    const highest = accountStats.reduce((current, entry) =>
-      entry.stats.currentDebt > current.stats.currentDebt ? entry : current,
-    accountStats[0]);
-    return highest.account.id;
-  }, [accountStats]);
-
   const handleChange = (event: InputChangeEvent) => {
     setForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
-  };
-
-  const handleEditChange = (event: InputChangeEvent) => {
-    setEditForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
   };
 
   const handleSubmit = (event: FormSubmitEvent) => {
@@ -369,46 +224,6 @@ function AccountsSection({
 
     onAddAccount(newAccount);
     setForm({ name: '', type: 'CREDIT_CARD', bankName: '', startingDebt: '0', notes: '' });
-  };
-
-  const beginEdit = (account: Account) => {
-    setEditingId(account.id);
-    setEditForm({
-      name: account.name,
-      bankName: account.bankName,
-      type: account.type,
-      startingDebt: account.startingDebt.toString(),
-      notes: account.notes,
-    });
-  };
-
-  const saveEdit = () => {
-    if (!editingId) return;
-    const targetAccount = accounts.find((account) => account.id === editingId);
-    if (!targetAccount) return;
-
-    const updated: Account = {
-      ...targetAccount,
-      name: editForm.name.trim() || targetAccount.name,
-      bankName: editForm.bankName.trim() || targetAccount.bankName,
-      type: editForm.type,
-      startingDebt: Number(editForm.startingDebt) || 0,
-      notes: editForm.notes.trim() || targetAccount.notes,
-    };
-
-    onUpdateAccount(updated);
-    setEditingId(null);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-  };
-
-  const confirmDelete = (account: Account) => {
-    const confirmed = window.confirm(`Delete account "${account.name}" and its details? This cannot be undone.`);
-    if (confirmed) {
-      onDeleteAccount(account);
-    }
   };
 
   return (
@@ -464,21 +279,8 @@ function AccountsSection({
       </form>
 
       <ul className="list">
-        {accountStats.map(({ account, stats }) => (
-          <AccountCard
-            key={account.id}
-            account={account}
-            balance={stats.currentDebt}
-            isHighestDebt={highestDebtAccountId === account.id}
-            totals={stats}
-            onEdit={beginEdit}
-            onDelete={confirmDelete}
-            isEditing={editingId === account.id}
-            editForm={editForm}
-            onEditChange={handleEditChange}
-            onSaveEdit={saveEdit}
-            onCancelEdit={cancelEdit}
-          />
+        {accounts.map((account) => (
+          <AccountCard key={account.id} account={account} balance={getBalance(account, transactions)} />
         ))}
         {accounts.length === 0 && <p className="empty">Add your first account to start tracking debt.</p>}
       </ul>
@@ -662,14 +464,6 @@ export default function App() {
 
   const addTransaction = (transaction: Transaction) => setTransactions((prev) => [transaction, ...prev]);
 
-  const updateAccount = (account: Account) =>
-    setAccounts((prev) => prev.map((item) => (item.id === account.id ? account : item)));
-
-  const deleteAccount = (account: Account) => {
-    setAccounts((prev) => prev.filter((item) => item.id !== account.id));
-    setTransactions((prev) => prev.filter((transaction) => transaction.accountId !== account.id));
-  };
-
   const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   return (
@@ -698,13 +492,7 @@ export default function App() {
         </section>
 
         <main className="grid two-col">
-          <AccountsSection
-            accounts={accounts}
-            transactions={transactions}
-            onAddAccount={addAccount}
-            onUpdateAccount={updateAccount}
-            onDeleteAccount={deleteAccount}
-          />
+          <AccountsSection accounts={accounts} transactions={transactions} onAddAccount={addAccount} />
           <TransactionsSection accounts={accounts} transactions={transactions} onAddTransaction={addTransaction} />
         </main>
       </div>
