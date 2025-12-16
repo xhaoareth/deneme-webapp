@@ -158,20 +158,70 @@ function getBalance(account: Account, transactions: Transaction[]): number {
     }, account.startingDebt);
 }
 
+type Page = 'overview' | 'accounts' | 'transactions' | 'settings';
+
 function Header({ theme, onToggleTheme }: { theme: string; onToggleTheme: () => void }) {
   return (
-    <header className="navbar">
+    <header className="app-header">
       <div className="brand">
         <div className="logo">DW</div>
         <div>
-          <p className="eyebrow">Deneme Webapp</p>
-          <h1>Finance Dashboard</h1>
+          <p className="eyebrow">Deneme Bank</p>
+          <h1>Debt Manager</h1>
         </div>
       </div>
-      <button className="theme-toggle" type="button" onClick={onToggleTheme}>
-        {theme === 'dark' ? '🌙 Dark' : '☀️ Light'} Mode
+      <button className="chip" type="button" onClick={onToggleTheme}>
+        {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
       </button>
     </header>
+  );
+}
+
+function Navigation({ activePage, onNavigate }: { activePage: Page; onNavigate: (page: Page) => void }) {
+  const pages: { key: Page; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'accounts', label: 'Accounts' },
+    { key: 'transactions', label: 'Transactions' },
+    { key: 'settings', label: 'Settings' },
+  ];
+
+  return (
+    <nav className="nav-tabs" aria-label="Primary">
+      {pages.map((page) => (
+        <button
+          key={page.key}
+          type="button"
+          className={`nav-tab ${activePage === page.key ? 'active' : ''}`}
+          onClick={() => onNavigate(page.key)}
+        >
+          {page.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function BottomNav({ activePage, onNavigate }: { activePage: Page; onNavigate: (page: Page) => void }) {
+  const navItems: { key: Page; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'accounts', label: 'Accounts' },
+    { key: 'transactions', label: 'Transactions' },
+    { key: 'settings', label: 'Settings' },
+  ];
+
+  return (
+    <nav className="bottom-nav" aria-label="Mobile navigation">
+      {navItems.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className={`bottom-nav__item ${activePage === item.key ? 'active' : ''}`}
+          onClick={() => onNavigate(item.key)}
+        >
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -651,6 +701,7 @@ function TransactionsSection({
 
 export default function App() {
   const [theme, setTheme] = useState(() => loadFromStorage(storageKeys.theme, 'light'));
+  const [activePage, setActivePage] = useState<Page>('overview');
 
   const [accounts, setAccounts] = useState<Account[]>(() => {
     const legacyNotes = collectLegacyNotes();
@@ -764,113 +815,142 @@ export default function App() {
       <div className="container">
         <Header theme={theme} onToggleTheme={toggleTheme} />
 
-        <div className="info-box">
+        <Navigation activePage={activePage} onNavigate={setActivePage} />
+
+        <section className="notice-card">
           <p>
-            All data is stored only on this device (local browser storage). Güvenlik için bilgileriniz
-            dışa aktarılmaz.
+            All data is stored only on this device (local browser storage). Güvenlik için bilgileriniz dışa
+            aktarılmaz.
           </p>
-        </div>
+        </section>
 
-        <section className="card stats">
-          <div className="stats-header">
-            <div>
-              <p className="eyebrow">Debt pulse</p>
-              <h2>{formatCurrency(totalRemainingDebt)}</h2>
-              <p className="muted">Total remaining debt across all accounts.</p>
-            </div>
-
-            <div className="highlight-grid">
-              <div className="highlight">
-                <p className="muted small">30-day payments</p>
-                <strong className="positive">{formatCurrency(totalRecentPayments)}</strong>
-                <p className="muted">Expenses & interest: {formatCurrency(totalRecentCharges)}</p>
+        {activePage === 'overview' && (
+          <section className="card stats">
+            <div className="stats-header">
+              <div>
+                <p className="eyebrow">Total exposure</p>
+                <h2>{formatCurrency(totalRemainingDebt)}</h2>
+                <p className="muted">Outstanding debt across all linked accounts.</p>
               </div>
-              <div className="highlight">
-                <p className="muted small">Highest debt</p>
-                {highestDebtAccount ? (
-                  <>
-                    <strong className="negative">{formatCurrency(highestDebtAccount.debt)}</strong>
-                    <p className="muted">{highestDebtAccount.account.name}</p>
-                  </>
-                ) : (
-                  <p className="muted">Add an account to track your exposure.</p>
-                )}
-              </div>
-            </div>
-          </div>
 
-          <div className="summary-grid">
-            <div className="metric-card">
-              <p className="muted small">Breakdown by account type</p>
-              <ul className="mini-list">
-                {Object.entries(breakdownByType).map(([type, amount]) => (
-                  <li key={type}>
-                    <span>{formatAccountType(type as AccountType)}</span>
-                    <strong>{formatCurrency(amount)}</strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="metric-card">
-              <p className="muted small">Account with highest debt</p>
-              {highestDebtAccount ? (
-                <div className="stack">
-                  <strong className="negative">{formatCurrency(highestDebtAccount.debt)}</strong>
-                  <p className="muted">{highestDebtAccount.account.bankName}</p>
-                  <p>{highestDebtAccount.account.name}</p>
+              <div className="summary-cards">
+                <div className="summary-card">
+                  <p className="muted small">30-day payments</p>
+                  <strong className="positive">{formatCurrency(totalRecentPayments)}</strong>
+                  <p className="muted">Expenses & interest: {formatCurrency(totalRecentCharges)}</p>
                 </div>
-              ) : (
-                <p className="empty">No accounts yet.</p>
-              )}
+                <div className="summary-card">
+                  <p className="muted small">Highest debt</p>
+                  {highestDebtAccount ? (
+                    <>
+                      <strong className="negative">{formatCurrency(highestDebtAccount.debt)}</strong>
+                      <p className="muted">{highestDebtAccount.account.name}</p>
+                    </>
+                  ) : (
+                    <p className="muted">Add an account to track your exposure.</p>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="metric-card">
-              <p className="muted small">Payment health (last 30 days)</p>
-              {accountsWithoutRecentPayments.length === 0 ? (
-                <p className="positive">Every account has a recent payment.</p>
-              ) : (
-                <ul className="mini-list warning">
-                  {accountsWithoutRecentPayments.map(({ account }) => (
-                    <li key={account.id}>
-                      <span>{account.name}</span>
-                      <span className="muted small">No POSITIVE transactions</span>
+            <div className="overview-grid">
+              <div className="metric-card">
+                <p className="muted small">Breakdown by account type</p>
+                <ul className="mini-list">
+                  {Object.entries(breakdownByType).map(([type, amount]) => (
+                    <li key={type}>
+                      <span>{formatAccountType(type as AccountType)}</span>
+                      <strong>{formatCurrency(amount)}</strong>
                     </li>
                   ))}
                 </ul>
-              )}
-            </div>
-          </div>
-
-          <div className="stat-grid">
-            {accountSummaries.map(({ account, balance }) => (
-              <div key={account.id} className="stat">
-                <div className="stack">
-                  <p className="muted small">{formatAccountType(account.type)}</p>
-                  <p>{account.name}</p>
-                </div>
-                <strong className={balance > 0 ? 'negative' : 'positive'}>{formatCurrency(balance)}</strong>
               </div>
-            ))}
-            {accounts.length === 0 && <p className="empty">Add an account to see balances.</p>}
-          </div>
-        </section>
 
-        <main className="grid two-col">
-          <AccountsSection
-            accounts={accounts}
-            transactions={transactions}
-            onAddAccount={addAccount}
-            onDeleteAccount={deleteAccount}
-          />
-          <TransactionsSection
-            accounts={accounts}
-            transactions={transactions}
-            onAddTransaction={addTransaction}
-            onDeleteTransaction={deleteTransaction}
-          />
-        </main>
+              <div className="metric-card">
+                <p className="muted small">Payment health (last 30 days)</p>
+                {accountsWithoutRecentPayments.length === 0 ? (
+                  <p className="positive">Every account has a recent payment.</p>
+                ) : (
+                  <ul className="mini-list warning">
+                    {accountsWithoutRecentPayments.map(({ account }) => (
+                      <li key={account.id}>
+                        <span>{account.name}</span>
+                        <span className="muted small">No POSITIVE transactions</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="stat-grid">
+              {accountSummaries.map(({ account, balance }) => (
+                <div key={account.id} className="stat">
+                  <div className="stack">
+                    <p className="muted small">{formatAccountType(account.type)}</p>
+                    <p>{account.name}</p>
+                  </div>
+                  <strong className={balance > 0 ? 'negative' : 'positive'}>{formatCurrency(balance)}</strong>
+                </div>
+              ))}
+              {accounts.length === 0 && <p className="empty">Add an account to see balances.</p>}
+            </div>
+          </section>
+        )}
+
+        {activePage === 'accounts' && (
+          <div className="content-grid">
+            <AccountsSection
+              accounts={accounts}
+              transactions={transactions}
+              onAddAccount={addAccount}
+              onDeleteAccount={deleteAccount}
+            />
+          </div>
+        )}
+
+        {activePage === 'transactions' && (
+          <div className="content-grid">
+            <TransactionsSection
+              accounts={accounts}
+              transactions={transactions}
+              onAddTransaction={addTransaction}
+              onDeleteTransaction={deleteTransaction}
+            />
+          </div>
+        )}
+
+        {activePage === 'settings' && (
+          <section className="card settings-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Settings</p>
+                <h2>Personalize</h2>
+              </div>
+            </div>
+            <div className="setting-row">
+              <div className="stack">
+                <p className="muted">Theme</p>
+                <p>Toggle between light and dark for comfortable viewing.</p>
+              </div>
+              <button type="button" className="primary" onClick={toggleTheme}>
+                {theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+              </button>
+            </div>
+            <div className="mini-stats">
+              <p>
+                <span>Accounts</span>
+                <span>{accounts.length}</span>
+              </p>
+              <p>
+                <span>Transactions</span>
+                <span>{transactions.length}</span>
+              </p>
+            </div>
+          </section>
+        )}
       </div>
+      <BottomNav activePage={activePage} onNavigate={setActivePage} />
     </div>
   );
 }
