@@ -351,10 +351,47 @@ a {
   cursor: pointer;
 }
 
+.ghost.danger-text {
+  color: #ef4444;
+}
+
+.primary {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .empty {
   text-align: center;
   padding: 12px;
   color: var(--muted);
+}
+
+.mini-stats {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mini-stats p {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.edit-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 @media (max-width: 600px) {
