@@ -211,15 +211,40 @@ function AccountsSection({
     startingDebt: '0',
     notes: '',
   });
+  const [error, setError] = useState('');
 
   const handleChange = (event: InputChangeEvent) => {
-    setForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
+    const { name, value } = event.target;
+    if (name === 'startingDebt') {
+      const sanitizedValue = value === '' ? '' : Math.max(0, Number(value));
+      setForm((prev) => ({ ...prev, startingDebt: sanitizedValue.toString() }));
+      setError('');
+      return;
+    }
+
+    setError('');
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
     const trimmedName = form.name.trim();
-    if (!trimmedName) return;
+    if (!trimmedName) {
+      setError('Lütfen hesap adı girin.');
+      return;
+    }
+
+    const startingDebtValue = Number(form.startingDebt);
+
+    if (Number.isNaN(startingDebtValue)) {
+      setError('Başlangıç borcunu sayısal olarak girin.');
+      return;
+    }
+
+    if (startingDebtValue < 0) {
+      setError('Başlangıç borcu negatif olamaz.');
+      return;
+    }
 
     const newAccount: Account = {
       id: crypto.randomUUID(),
@@ -227,13 +252,14 @@ function AccountsSection({
       type: form.type,
       bankName: form.bankName.trim() || 'Unnamed Bank',
       currency: 'TRY',
-      startingDebt: Number(form.startingDebt) || 0,
+      startingDebt: Math.max(0, Number(form.startingDebt)) || 0,
       createdAt: new Date().toISOString(),
       notes: form.notes.trim() || 'No notes yet.',
     };
 
     onAddAccount(newAccount);
     setForm({ name: '', type: 'CREDIT_CARD', bankName: '', startingDebt: '0', notes: '' });
+    setError('');
   };
 
   return (
@@ -273,6 +299,7 @@ function AccountsSection({
               value={form.startingDebt}
               onChange={handleChange}
             />
+            <p className="muted small">Başlangıç borcu, ilk borçlu olduğunuz tutardır.</p>
           </label>
           <label className="field">
             <span>Notes</span>
@@ -285,6 +312,7 @@ function AccountsSection({
             />
           </label>
         </div>
+        {error && <p className="form-error">{error}</p>}
         <button type="submit">Add account</button>
       </form>
 
@@ -345,6 +373,7 @@ function TransactionsSection({
     category: 'General',
     description: '',
   });
+  const [error, setError] = useState('');
 
   const [filters, setFilters] = useState({
     accountId: 'ALL',
@@ -368,17 +397,34 @@ function TransactionsSection({
     const sanitizedValue =
       name === 'amount' ? (value === '' ? '' : Math.abs(Number(value)).toString()) : value;
     setForm((prev) => ({ ...prev, [name]: sanitizedValue }));
+    setError('');
   };
 
   const handleSubmit = (event: FormSubmitEvent) => {
     event.preventDefault();
-    if (!form.accountId) return;
+
+    if (!form.accountId) {
+      setError('İşlem eklemek için bir hesap seçin.');
+      return;
+    }
+
+    const amountValue = Math.abs(Number(form.amount));
+
+    if (Number.isNaN(amountValue)) {
+      setError('Lütfen geçerli bir tutar girin.');
+      return;
+    }
+
+    if (amountValue <= 0) {
+      setError("Tutar 0'dan büyük olmalıdır.");
+      return;
+    }
 
     const newTransaction: Transaction = {
       id: crypto.randomUUID(),
       accountId: form.accountId,
       date: new Date(form.date).toISOString(),
-      amount: Math.abs(Number(form.amount)) || 0,
+      amount: amountValue || 0,
       direction: form.direction,
       category: form.category.trim() || 'General',
       description: form.description.trim() || 'No description',
@@ -386,6 +432,7 @@ function TransactionsSection({
 
     onAddTransaction(newTransaction);
     setForm((prev) => ({ ...prev, amount: '0', description: '' }));
+    setError('');
   };
 
   const handleFilterChange = (event: InputChangeEvent) => {
@@ -467,7 +514,7 @@ function TransactionsSection({
               onChange={handleChange}
               inputMode="decimal"
             />
-            <p className="muted small">Always enter positive amounts; direction decides if debt goes up or down.</p>
+            <p className="muted small">Her zaman pozitif tutar girin; yön borcun artıp azaldığını belirler.</p>
           </label>
           <label className="field">
             <span>Direction</span>
@@ -500,6 +547,8 @@ function TransactionsSection({
             <input name="description" value={form.description} onChange={handleChange} />
           </label>
         </div>
+
+        {error && <p className="form-error">{error}</p>}
 
         <button type="submit" disabled={accounts.length === 0}>
           Add transaction
@@ -625,6 +674,13 @@ export default function App() {
     <div className={`page ${themeClass}`}>
       <div className="container">
         <Header theme={theme} onToggleTheme={toggleTheme} />
+
+        <div className="info-box">
+          <p>
+            All data is stored only on this device (local browser storage). Güvenlik için bilgileriniz
+            dışa aktarılmaz.
+          </p>
+        </div>
 
         <section className="card stats">
           <div className="stats-header">
